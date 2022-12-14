@@ -3,8 +3,8 @@ package jsonrpc
 import (
 	"reflect"
 	"time"
-
-	"github.com/gorilla/websocket"
+	
+	"github.com/gozelle/websocket"
 )
 
 type ParamEncoder func(reflect.Value) (reflect.Value, error)
@@ -13,10 +13,10 @@ type Config struct {
 	reconnectBackoff backoff
 	pingInterval     time.Duration
 	timeout          time.Duration
-
+	
 	paramEncoders map[reflect.Type]ParamEncoder
 	errors        *Errors
-
+	
 	noReconnect      bool
 	proxyConnFactory func(func() (*websocket.Conn, error)) func() (*websocket.Conn, error) // for testing
 }
@@ -29,7 +29,7 @@ func defaultConfig() Config {
 		},
 		pingInterval: 5 * time.Second,
 		timeout:      30 * time.Second,
-
+		
 		paramEncoders: map[reflect.Type]ParamEncoder{},
 	}
 }

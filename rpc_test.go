@@ -15,11 +15,11 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/gorilla/websocket"
-	logging "github.com/ipfs/go-log/v2"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	
+	logging "github.com/gozelle/logging"
+	"github.com/gozelle/testify/assert"
+	"github.com/gozelle/testify/require"
+	"github.com/gozelle/websocket"
 	"golang.org/x/xerrors"
 )
 
@@ -47,9 +47,9 @@ func (h *SimpleServerHandler) Add(in int) error {
 	if in == -3546 {
 		return errors.New("test")
 	}
-
+	
 	h.n += in
-
+	
 	return nil
 }
 
@@ -74,56 +74,56 @@ func TestReconnection(t *testing.T) {
 	var rpcClient struct {
 		Add func(int) error
 	}
-
+	
 	rpcHandler := SimpleServerHandler{}
-
+	
 	rpcServer := NewServer()
 	rpcServer.Register("SimpleServerHandler", &rpcHandler)
-
+	
 	testServ := httptest.NewServer(rpcServer)
 	defer testServ.Close()
-
+	
 	// capture connection attempts for this duration
 	captureDuration := 3 * time.Second
-
+	
 	// run the test until the timer expires
 	timer := time.NewTimer(captureDuration)
-
+	
 	// record the number of connection attempts during this test
 	connectionAttempts := 1
-
+	
 	closer, err := NewMergeClient(context.Background(), "ws://"+testServ.Listener.Addr().String(), "SimpleServerHandler", []interface{}{&rpcClient}, nil, func(c *Config) {
 		c.proxyConnFactory = func(f func() (*websocket.Conn, error)) func() (*websocket.Conn, error) {
 			return func() (*websocket.Conn, error) {
 				defer func() {
 					connectionAttempts++
 				}()
-
+				
 				if connectionAttempts > 1 {
 					return nil, errors.New("simulates a failed reconnect attempt")
 				}
-
+				
 				c, err := f()
 				if err != nil {
 					return nil, err
 				}
-
+				
 				// closing the connection here triggers the reconnect logic
 				_ = c.Close()
-
+				
 				return c, nil
 			}
 		}
 	})
 	require.NoError(t, err)
 	defer closer()
-
+	
 	// let the JSON-RPC library attempt to reconnect until the timer runs out
 	<-timer.C
-
+	
 	// do some math
 	attemptsPerSecond := int64(connectionAttempts) / int64(captureDuration/time.Second)
-
+	
 	assert.Less(t, attemptsPerSecond, int64(50))
 }
 
@@ -133,17 +133,17 @@ func (h *SimpleServerHandler) ErrChanSub(ctx context.Context) (<-chan int, error
 
 func TestRPCBadConnection(t *testing.T) {
 	// setup server
-
+	
 	serverHandler := &SimpleServerHandler{}
-
+	
 	rpcServer := NewServer()
 	rpcServer.Register("SimpleServerHandler", serverHandler)
-
+	
 	// httptest stuff
 	testServ := httptest.NewServer(rpcServer)
 	defer testServ.Close()
 	// setup client
-
+	
 	var client struct {
 		Add         func(int) error
 		AddGet      func(int) int
@@ -154,24 +154,24 @@ func TestRPCBadConnection(t *testing.T) {
 	require.NoError(t, err)
 	err = client.Add(2)
 	require.True(t, errors.As(err, new(*RPCConnectionError)))
-
+	
 	defer closer()
-
+	
 }
 
 func TestRPC(t *testing.T) {
 	// setup server
-
+	
 	serverHandler := &SimpleServerHandler{}
-
+	
 	rpcServer := NewServer()
 	rpcServer.Register("SimpleServerHandler", serverHandler)
-
+	
 	// httptest stuff
 	testServ := httptest.NewServer(rpcServer)
 	defer testServ.Close()
 	// setup client
-
+	
 	var client struct {
 		Add         func(int) error
 		AddGet      func(int) int
@@ -181,96 +181,96 @@ func TestRPC(t *testing.T) {
 	closer, err := NewClient(context.Background(), "ws://"+testServ.Listener.Addr().String(), "SimpleServerHandler", &client, nil)
 	require.NoError(t, err)
 	defer closer()
-
+	
 	// Add(int) error
-
+	
 	require.NoError(t, client.Add(2))
 	require.Equal(t, 2, serverHandler.n)
-
+	
 	err = client.Add(-3546)
 	require.EqualError(t, err, "test")
-
+	
 	// AddGet(int) int
-
+	
 	n := client.AddGet(3)
 	require.Equal(t, 5, n)
 	require.Equal(t, 5, serverHandler.n)
-
+	
 	// StringMatch
-
+	
 	o, err := client.StringMatch(TestType{S: "0"}, 0)
 	require.NoError(t, err)
 	require.Equal(t, "0", o.S)
 	require.Equal(t, 0, o.I)
-
+	
 	_, err = client.StringMatch(TestType{S: "5"}, 5)
 	require.EqualError(t, err, ":(")
-
+	
 	o, err = client.StringMatch(TestType{S: "8", I: 8}, 8)
 	require.NoError(t, err)
 	require.Equal(t, "8", o.S)
 	require.Equal(t, 8, o.I)
-
+	
 	// ErrChanSub
 	ctx := context.TODO()
 	_, err = client.ErrChanSub(ctx)
 	if err == nil {
 		t.Fatal("expect an err return, but got nil")
 	}
-
+	
 	// Invalid client handlers
-
+	
 	var noret struct {
 		Add func(int)
 	}
 	closer, err = NewClient(context.Background(), "ws://"+testServ.Listener.Addr().String(), "SimpleServerHandler", &noret, nil)
 	require.NoError(t, err)
-
+	
 	// this one should actually work
 	noret.Add(4)
 	require.Equal(t, 9, serverHandler.n)
 	closer()
-
+	
 	var noparam struct {
 		Add func()
 	}
 	closer, err = NewClient(context.Background(), "ws://"+testServ.Listener.Addr().String(), "SimpleServerHandler", &noparam, nil)
 	require.NoError(t, err)
-
+	
 	// shouldn't panic
 	noparam.Add()
 	closer()
-
+	
 	var erronly struct {
 		AddGet func() (int, error)
 	}
 	closer, err = NewClient(context.Background(), "ws://"+testServ.Listener.Addr().String(), "SimpleServerHandler", &erronly, nil)
 	require.NoError(t, err)
-
+	
 	_, err = erronly.AddGet()
 	if err == nil || err.Error() != "RPC error (-32602): wrong param count (method 'SimpleServerHandler.AddGet'): 0 != 1" {
 		t.Error("wrong error:", err)
 	}
 	closer()
-
+	
 	var wrongtype struct {
 		Add func(string) error
 	}
 	closer, err = NewClient(context.Background(), "ws://"+testServ.Listener.Addr().String(), "SimpleServerHandler", &wrongtype, nil)
 	require.NoError(t, err)
-
+	
 	err = wrongtype.Add("not an int")
 	if err == nil || !strings.Contains(err.Error(), "RPC error (-32700):") || !strings.Contains(err.Error(), "json: cannot unmarshal string into Go value of type int") {
 		t.Error("wrong error:", err)
 	}
 	closer()
-
+	
 	var notfound struct {
 		NotThere func(string) error
 	}
 	closer, err = NewClient(context.Background(), "ws://"+testServ.Listener.Addr().String(), "SimpleServerHandler", &notfound, nil)
 	require.NoError(t, err)
-
+	
 	err = notfound.NotThere("hello?")
 	if err == nil || err.Error() != "RPC error (-32601): method 'SimpleServerHandler.NotThere' not found" {
 		t.Error("wrong error:", err)
@@ -280,17 +280,17 @@ func TestRPC(t *testing.T) {
 
 func TestRPCHttpClient(t *testing.T) {
 	// setup server
-
+	
 	serverHandler := &SimpleServerHandler{}
-
+	
 	rpcServer := NewServer()
 	rpcServer.Register("SimpleServerHandler", serverHandler)
-
+	
 	// httptest stuff
 	testServ := httptest.NewServer(rpcServer)
 	defer testServ.Close()
 	// setup client
-
+	
 	var client struct {
 		Add         func(int) error
 		AddGet      func(int) int
@@ -299,89 +299,89 @@ func TestRPCHttpClient(t *testing.T) {
 	closer, err := NewClient(context.Background(), "http://"+testServ.Listener.Addr().String(), "SimpleServerHandler", &client, nil)
 	require.NoError(t, err)
 	defer closer()
-
+	
 	// Add(int) error
-
+	
 	require.NoError(t, client.Add(2))
 	require.Equal(t, 2, serverHandler.n)
-
+	
 	err = client.Add(-3546)
 	require.EqualError(t, err, "test")
-
+	
 	// AddGet(int) int
-
+	
 	n := client.AddGet(3)
 	require.Equal(t, 5, n)
 	require.Equal(t, 5, serverHandler.n)
-
+	
 	// StringMatch
-
+	
 	o, err := client.StringMatch(TestType{S: "0"}, 0)
 	require.NoError(t, err)
 	require.Equal(t, "0", o.S)
 	require.Equal(t, 0, o.I)
-
+	
 	_, err = client.StringMatch(TestType{S: "5"}, 5)
 	require.EqualError(t, err, ":(")
-
+	
 	o, err = client.StringMatch(TestType{S: "8", I: 8}, 8)
 	require.NoError(t, err)
 	require.Equal(t, "8", o.S)
 	require.Equal(t, 8, o.I)
-
+	
 	// Invalid client handlers
-
+	
 	var noret struct {
 		Add func(int)
 	}
 	closer, err = NewClient(context.Background(), "http://"+testServ.Listener.Addr().String(), "SimpleServerHandler", &noret, nil)
 	require.NoError(t, err)
-
+	
 	// this one should actually work
 	noret.Add(4)
 	require.Equal(t, 9, serverHandler.n)
 	closer()
-
+	
 	var noparam struct {
 		Add func()
 	}
 	closer, err = NewClient(context.Background(), "http://"+testServ.Listener.Addr().String(), "SimpleServerHandler", &noparam, nil)
 	require.NoError(t, err)
-
+	
 	// shouldn't panic
 	noparam.Add()
 	closer()
-
+	
 	var erronly struct {
 		AddGet func() (int, error)
 	}
 	closer, err = NewClient(context.Background(), "http://"+testServ.Listener.Addr().String(), "SimpleServerHandler", &erronly, nil)
 	require.NoError(t, err)
-
+	
 	_, err = erronly.AddGet()
 	if err == nil || err.Error() != "RPC error (-32602): wrong param count (method 'SimpleServerHandler.AddGet'): 0 != 1" {
 		t.Error("wrong error:", err)
 	}
 	closer()
-
+	
 	var wrongtype struct {
 		Add func(string) error
 	}
 	closer, err = NewClient(context.Background(), "http://"+testServ.Listener.Addr().String(), "SimpleServerHandler", &wrongtype, nil)
 	require.NoError(t, err)
-
+	
 	err = wrongtype.Add("not an int")
 	if err == nil || !strings.Contains(err.Error(), "RPC error (-32700):") || !strings.Contains(err.Error(), "json: cannot unmarshal string into Go value of type int") {
 		t.Error("wrong error:", err)
 	}
 	closer()
-
+	
 	var notfound struct {
 		NotThere func(string) error
 	}
 	closer, err = NewClient(context.Background(), "http://"+testServ.Listener.Addr().String(), "SimpleServerHandler", &notfound, nil)
 	require.NoError(t, err)
-
+	
 	err = notfound.NotThere("hello?")
 	if err == nil || err.Error() != "RPC error (-32601): method 'SimpleServerHandler.NotThere' not found" {
 		t.Error("wrong error:", err)
@@ -391,7 +391,7 @@ func TestRPCHttpClient(t *testing.T) {
 
 type CtxHandler struct {
 	lk sync.Mutex
-
+	
 	cancelled bool
 	i         int
 }
@@ -401,7 +401,7 @@ func (h *CtxHandler) Test(ctx context.Context) {
 	defer h.lk.Unlock()
 	timeout := time.After(300 * time.Millisecond)
 	h.i++
-
+	
 	select {
 	case <-timeout:
 	case <-ctx.Done():
@@ -411,39 +411,39 @@ func (h *CtxHandler) Test(ctx context.Context) {
 
 func TestCtx(t *testing.T) {
 	// setup server
-
+	
 	serverHandler := &CtxHandler{}
-
+	
 	rpcServer := NewServer()
 	rpcServer.Register("CtxHandler", serverHandler)
-
+	
 	// httptest stuff
 	testServ := httptest.NewServer(rpcServer)
 	defer testServ.Close()
-
+	
 	// setup client
-
+	
 	var client struct {
 		Test func(ctx context.Context)
 	}
 	closer, err := NewClient(context.Background(), "ws://"+testServ.Listener.Addr().String(), "CtxHandler", &client, nil)
 	require.NoError(t, err)
-
+	
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-
+	
 	client.Test(ctx)
 	serverHandler.lk.Lock()
-
+	
 	if !serverHandler.cancelled {
 		t.Error("expected cancellation on the server side")
 	}
-
+	
 	serverHandler.cancelled = false
-
+	
 	serverHandler.lk.Unlock()
 	closer()
-
+	
 	var noCtxClient struct {
 		Test func()
 	}
@@ -451,54 +451,54 @@ func TestCtx(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
+	
 	noCtxClient.Test()
-
+	
 	serverHandler.lk.Lock()
-
+	
 	if serverHandler.cancelled || serverHandler.i != 2 {
 		t.Error("wrong serverHandler state")
 	}
-
+	
 	serverHandler.lk.Unlock()
 	closer()
 }
 
 func TestCtxHttp(t *testing.T) {
 	// setup server
-
+	
 	serverHandler := &CtxHandler{}
-
+	
 	rpcServer := NewServer()
 	rpcServer.Register("CtxHandler", serverHandler)
-
+	
 	// httptest stuff
 	testServ := httptest.NewServer(rpcServer)
 	defer testServ.Close()
-
+	
 	// setup client
-
+	
 	var client struct {
 		Test func(ctx context.Context)
 	}
 	closer, err := NewClient(context.Background(), "http://"+testServ.Listener.Addr().String(), "CtxHandler", &client, nil)
 	require.NoError(t, err)
-
+	
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-
+	
 	client.Test(ctx)
 	serverHandler.lk.Lock()
-
+	
 	if !serverHandler.cancelled {
 		t.Error("expected cancellation on the server side")
 	}
-
+	
 	serverHandler.cancelled = false
-
+	
 	serverHandler.lk.Unlock()
 	closer()
-
+	
 	var noCtxClient struct {
 		Test func()
 	}
@@ -506,15 +506,15 @@ func TestCtxHttp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
+	
 	noCtxClient.Test()
-
+	
 	serverHandler.lk.Lock()
-
+	
 	if serverHandler.cancelled || serverHandler.i != 2 {
 		t.Error("wrong serverHandler state")
 	}
-
+	
 	serverHandler.lk.Unlock()
 	closer()
 }
@@ -535,17 +535,17 @@ func TestUnmarshalableResult(t *testing.T) {
 	var client struct {
 		GetUnUnmarshalableStuff func() (UnUnmarshalable, error)
 	}
-
+	
 	rpcServer := NewServer()
 	rpcServer.Register("Handler", &UnUnmarshalableHandler{})
-
+	
 	testServ := httptest.NewServer(rpcServer)
 	defer testServ.Close()
-
+	
 	closer, err := NewClient(context.Background(), "ws://"+testServ.Listener.Addr().String(), "Handler", &client, nil)
 	require.NoError(t, err)
 	defer closer()
-
+	
 	_, err = client.GetUnUnmarshalableStuff()
 	require.EqualError(t, err, "RPC client error: unmarshaling result: nope")
 }
@@ -558,14 +558,14 @@ type ChanHandler struct {
 func (h *ChanHandler) Sub(ctx context.Context, i int, eq int) (<-chan int, error) {
 	out := make(chan int)
 	h.ctxdone = ctx.Done()
-
+	
 	wait := h.wait
-
+	
 	log.Warnf("SERVER SUB!")
 	go func() {
 		defer close(out)
 		var n int
-
+		
 		for {
 			select {
 			case <-ctx.Done():
@@ -574,14 +574,14 @@ func (h *ChanHandler) Sub(ctx context.Context, i int, eq int) (<-chan int, error
 			case <-wait:
 				fmt.Println("CONSUMED WAIT: ", i)
 			}
-
+			
 			n += i
-
+			
 			if n == eq {
 				fmt.Println("eq")
 				return
 			}
-
+			
 			select {
 			case <-ctx.Done():
 				fmt.Println("ctxdone2")
@@ -590,7 +590,7 @@ func (h *ChanHandler) Sub(ctx context.Context, i int, eq int) (<-chan int, error
 			}
 		}
 	}()
-
+	
 	return out, nil
 }
 
@@ -598,67 +598,67 @@ func TestChan(t *testing.T) {
 	var client struct {
 		Sub func(context.Context, int, int) (<-chan int, error)
 	}
-
+	
 	serverHandler := &ChanHandler{
 		wait: make(chan struct{}, 5),
 	}
-
+	
 	rpcServer := NewServer()
 	rpcServer.Register("ChanHandler", serverHandler)
-
+	
 	testServ := httptest.NewServer(rpcServer)
 	defer testServ.Close()
-
+	
 	closer, err := NewClient(context.Background(), "ws://"+testServ.Listener.Addr().String(), "ChanHandler", &client, nil)
 	require.NoError(t, err)
-
+	
 	defer closer()
-
+	
 	serverHandler.wait <- struct{}{}
-
+	
 	ctx, cancel := context.WithCancel(context.Background())
-
+	
 	// sub
-
+	
 	sub, err := client.Sub(ctx, 2, -1)
 	require.NoError(t, err)
-
+	
 	// recv one
-
+	
 	require.Equal(t, 2, <-sub)
-
+	
 	// recv many (order)
-
+	
 	serverHandler.wait <- struct{}{}
 	serverHandler.wait <- struct{}{}
 	serverHandler.wait <- struct{}{}
-
+	
 	require.Equal(t, 4, <-sub)
 	require.Equal(t, 6, <-sub)
 	require.Equal(t, 8, <-sub)
-
+	
 	// close (through ctx)
 	cancel()
-
+	
 	_, ok := <-sub
 	require.Equal(t, false, ok)
-
+	
 	// sub (again)
-
+	
 	serverHandler.wait = make(chan struct{}, 5)
 	serverHandler.wait <- struct{}{}
-
+	
 	ctx, cancel = context.WithCancel(context.Background())
 	defer cancel()
-
+	
 	log.Warnf("last sub")
 	sub, err = client.Sub(ctx, 3, 6)
 	require.NoError(t, err)
-
+	
 	log.Warnf("waiting for value now")
 	require.Equal(t, 3, <-sub)
 	log.Warnf("not equal")
-
+	
 	// close (remote)
 	serverHandler.wait <- struct{}{}
 	_, ok = <-sub
@@ -669,49 +669,49 @@ func TestChanClosing(t *testing.T) {
 	var client struct {
 		Sub func(context.Context, int, int) (<-chan int, error)
 	}
-
+	
 	serverHandler := &ChanHandler{
 		wait: make(chan struct{}, 5),
 	}
-
+	
 	rpcServer := NewServer()
 	rpcServer.Register("ChanHandler", serverHandler)
-
+	
 	testServ := httptest.NewServer(rpcServer)
 	defer testServ.Close()
-
+	
 	closer, err := NewClient(context.Background(), "ws://"+testServ.Listener.Addr().String(), "ChanHandler", &client, nil)
 	require.NoError(t, err)
-
+	
 	defer closer()
-
+	
 	ctx1, cancel1 := context.WithCancel(context.Background())
 	ctx2, cancel2 := context.WithCancel(context.Background())
-
+	
 	// sub
-
+	
 	sub1, err := client.Sub(ctx1, 2, -1)
 	require.NoError(t, err)
-
+	
 	sub2, err := client.Sub(ctx2, 3, -1)
 	require.NoError(t, err)
-
+	
 	// recv one
-
+	
 	serverHandler.wait <- struct{}{}
 	serverHandler.wait <- struct{}{}
-
+	
 	require.Equal(t, 2, <-sub1)
 	require.Equal(t, 3, <-sub2)
-
+	
 	cancel1()
-
+	
 	require.Equal(t, 0, <-sub1)
 	time.Sleep(time.Millisecond * 50) // make sure the loop has exited (having a shared wait channel makes this annoying)
-
+	
 	serverHandler.wait <- struct{}{}
 	require.Equal(t, 6, <-sub2)
-
+	
 	cancel2()
 	require.Equal(t, 0, <-sub2)
 }
@@ -720,53 +720,53 @@ func TestChanServerClose(t *testing.T) {
 	var client struct {
 		Sub func(context.Context, int, int) (<-chan int, error)
 	}
-
+	
 	serverHandler := &ChanHandler{
 		wait: make(chan struct{}, 5),
 	}
-
+	
 	rpcServer := NewServer()
 	rpcServer.Register("ChanHandler", serverHandler)
-
+	
 	tctx, tcancel := context.WithCancel(context.Background())
-
+	
 	testServ := httptest.NewServer(rpcServer)
 	testServ.Config.ConnContext = func(ctx context.Context, c net.Conn) context.Context {
 		return tctx
 	}
-
+	
 	closer, err := NewClient(context.Background(), "ws://"+testServ.Listener.Addr().String(), "ChanHandler", &client, nil)
 	require.NoError(t, err)
-
+	
 	defer closer()
-
+	
 	serverHandler.wait <- struct{}{}
-
+	
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
+	
 	// sub
-
+	
 	sub, err := client.Sub(ctx, 2, -1)
 	require.NoError(t, err)
-
+	
 	// recv one
-
+	
 	require.Equal(t, 2, <-sub)
-
+	
 	// make sure we're blocked
-
+	
 	select {
 	case <-time.After(200 * time.Millisecond):
 	case <-sub:
 		t.Fatal("didn't expect to get anything from sub")
 	}
-
+	
 	// close server
-
+	
 	tcancel()
 	testServ.Close()
-
+	
 	_, ok := <-sub
 	require.Equal(t, false, ok)
 }
@@ -775,18 +775,18 @@ func TestServerChanLockClose(t *testing.T) {
 	var client struct {
 		Sub func(context.Context, int, int) (<-chan int, error)
 	}
-
+	
 	serverHandler := &ChanHandler{
 		wait: make(chan struct{}),
 	}
-
+	
 	rpcServer := NewServer()
 	rpcServer.Register("ChanHandler", serverHandler)
-
+	
 	testServ := httptest.NewServer(rpcServer)
-
+	
 	var closeConn func() error
-
+	
 	_, err := NewMergeClient(context.Background(), "ws://"+testServ.Listener.Addr().String(),
 		"ChanHandler",
 		[]interface{}{&client}, nil,
@@ -797,38 +797,38 @@ func TestServerChanLockClose(t *testing.T) {
 					if err != nil {
 						return nil, err
 					}
-
+					
 					closeConn = c.UnderlyingConn().Close
-
+					
 					return c, nil
 				}
 			}
 		})
 	require.NoError(t, err)
-
+	
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
+	
 	// sub
-
+	
 	sub, err := client.Sub(ctx, 2, -1)
 	require.NoError(t, err)
-
+	
 	// recv one
-
+	
 	go func() {
 		serverHandler.wait <- struct{}{}
 	}()
 	require.Equal(t, 2, <-sub)
-
+	
 	for i := 0; i < 100; i++ {
 		serverHandler.wait <- struct{}{}
 	}
-
+	
 	if err := closeConn(); err != nil {
 		t.Fatal(err)
 	}
-
+	
 	<-serverHandler.ctxdone
 }
 
@@ -837,15 +837,15 @@ type StreamingHandler struct {
 
 func (h *StreamingHandler) GetData(ctx context.Context, n int) (<-chan int, error) {
 	out := make(chan int)
-
+	
 	go func() {
 		defer close(out)
-
+		
 		for i := 0; i < n; i++ {
 			out <- i
 		}
 	}()
-
+	
 	return out, nil
 }
 
@@ -853,39 +853,39 @@ func TestChanClientReceiveAll(t *testing.T) {
 	var client struct {
 		GetData func(context.Context, int) (<-chan int, error)
 	}
-
+	
 	serverHandler := &StreamingHandler{}
-
+	
 	rpcServer := NewServer()
 	rpcServer.Register("ChanHandler", serverHandler)
-
+	
 	tctx, tcancel := context.WithCancel(context.Background())
-
+	
 	testServ := httptest.NewServer(rpcServer)
 	testServ.Config.ConnContext = func(ctx context.Context, c net.Conn) context.Context {
 		return tctx
 	}
-
+	
 	closer, err := NewClient(context.Background(), "ws://"+testServ.Listener.Addr().String(), "ChanHandler", &client, nil)
 	require.NoError(t, err)
-
+	
 	defer closer()
-
+	
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
+	
 	// sub
-
+	
 	sub, err := client.GetData(ctx, 100)
 	require.NoError(t, err)
-
+	
 	for i := 0; i < 100; i++ {
 		select {
 		case v, ok := <-sub:
 			if !ok {
 				t.Fatal("channel closed", i)
 			}
-
+			
 			if v != i {
 				t.Fatal("got wrong value", v, i)
 			}
@@ -893,10 +893,10 @@ func TestChanClientReceiveAll(t *testing.T) {
 			t.Fatal("timed out waiting for values")
 		}
 	}
-
+	
 	tcancel()
 	testServ.Close()
-
+	
 }
 
 func TestControlChanDeadlock(t *testing.T) {
@@ -909,36 +909,36 @@ func testControlChanDeadlock(t *testing.T) {
 	var client struct {
 		Sub func(context.Context, int, int) (<-chan int, error)
 	}
-
+	
 	n := 5000
-
+	
 	serverHandler := &ChanHandler{
 		wait: make(chan struct{}, n),
 	}
-
+	
 	rpcServer := NewServer()
 	rpcServer.Register("ChanHandler", serverHandler)
-
+	
 	testServ := httptest.NewServer(rpcServer)
 	defer testServ.Close()
-
+	
 	closer, err := NewClient(context.Background(), "ws://"+testServ.Listener.Addr().String(), "ChanHandler", &client, nil)
 	require.NoError(t, err)
-
+	
 	defer closer()
-
+	
 	for i := 0; i < n; i++ {
 		serverHandler.wait <- struct{}{}
 	}
-
+	
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
+	
 	sub, err := client.Sub(ctx, 1, -1)
 	require.NoError(t, err)
-
+	
 	done := make(chan struct{})
-
+	
 	go func() {
 		defer close(done)
 		for i := 0; i < n; i++ {
@@ -948,13 +948,13 @@ func testControlChanDeadlock(t *testing.T) {
 			}
 		}
 	}()
-
+	
 	// reset this channel so its not shared between the sub requests...
 	serverHandler.wait = make(chan struct{}, n)
 	for i := 0; i < n; i++ {
 		serverHandler.wait <- struct{}{}
 	}
-
+	
 	_, err = client.Sub(ctx, 2, -1)
 	require.NoError(t, err)
 	<-done
@@ -971,20 +971,20 @@ func TestInterfaceHandler(t *testing.T) {
 	var client struct {
 		ReadAll func(ctx context.Context, r io.Reader) ([]byte, error)
 	}
-
+	
 	serverHandler := &InterfaceHandler{}
-
+	
 	rpcServer := NewServer(WithParamDecoder(new(io.Reader), readerDec))
 	rpcServer.Register("InterfaceHandler", serverHandler)
-
+	
 	testServ := httptest.NewServer(rpcServer)
 	defer testServ.Close()
-
+	
 	closer, err := NewMergeClient(context.Background(), "ws://"+testServ.Listener.Addr().String(), "InterfaceHandler", []interface{}{&client}, nil, WithParamEncoder(new(io.Reader), readerEnc))
 	require.NoError(t, err)
-
+	
 	defer closer()
-
+	
 	read, err := client.ReadAll(context.TODO(), strings.NewReader("pooooootato"))
 	require.NoError(t, err)
 	require.Equal(t, "pooooootato", string(read), "potatos weren't equal")
@@ -998,13 +998,13 @@ var (
 
 func readerEnc(rin reflect.Value) (reflect.Value, error) {
 	reader := rin.Interface().(io.Reader)
-
+	
 	readerRegisteryLk.Lock()
 	defer readerRegisteryLk.Unlock()
-
+	
 	n := readerRegisteryN
 	readerRegisteryN++
-
+	
 	readerRegistery[n] = reader
 	return reflect.ValueOf(n), nil
 }
@@ -1014,10 +1014,10 @@ func readerDec(ctx context.Context, rin []byte) (reflect.Value, error) {
 	if err := json.Unmarshal(rin, &id); err != nil {
 		return reflect.Value{}, err
 	}
-
+	
 	readerRegisteryLk.Lock()
 	defer readerRegisteryLk.Unlock()
-
+	
 	return reflect.ValueOf(readerRegistery[id]), nil
 }
 
@@ -1061,29 +1061,29 @@ func (h *ErrHandler) TestMy(s string) error {
 
 func TestUserError(t *testing.T) {
 	// setup server
-
+	
 	serverHandler := &ErrHandler{}
-
+	
 	const (
 		EBad = iota + FirstUserCode
 		EBad2
 		EMy
 	)
-
+	
 	errs := NewErrors()
 	errs.Register(EBad, new(ErrSomethingBad))
 	errs.Register(EBad2, new(*ErrSomethingBad))
 	errs.Register(EMy, new(*ErrMyErr))
-
+	
 	rpcServer := NewServer(WithServerErrors(errs))
 	rpcServer.Register("ErrHandler", serverHandler)
-
+	
 	// httptest stuff
 	testServ := httptest.NewServer(rpcServer)
 	defer testServ.Close()
-
+	
 	// setup client
-
+	
 	var client struct {
 		Test   func() error
 		TestP  func() error
@@ -1093,25 +1093,25 @@ func TestUserError(t *testing.T) {
 		&client,
 	}, nil, WithErrors(errs))
 	require.NoError(t, err)
-
+	
 	e := client.Test()
 	require.True(t, xerrors.Is(e, ErrSomethingBad{}))
-
+	
 	e = client.TestP()
 	require.True(t, xerrors.Is(e, &ErrSomethingBad{}))
-
+	
 	e = client.TestMy("some event")
 	require.Error(t, e)
 	require.Equal(t, "this happened: some event", e.Error())
 	require.Equal(t, "this happened: some event", e.(*ErrMyErr).Error())
-
+	
 	closer()
 }
 
 // Unit test for request/response ID translation.
 func TestIDHandling(t *testing.T) {
 	var decoded request
-
+	
 	cases := []struct {
 		str       string
 		expect    interface{}
@@ -1125,7 +1125,7 @@ func TestIDHandling(t *testing.T) {
 		{`{"id":["1"],"jsonrpc":"2.0","method":"eth_blockNumber","params":[]}`, nil, true},
 		{`{"id":{"a":"b"},"jsonrpc":"2.0","method":"eth_blockNumber","params":[]}`, nil, true},
 	}
-
+	
 	for _, tc := range cases {
 		t.Run(fmt.Sprintf("%v", tc.expect), func(t *testing.T) {
 			dec := json.NewDecoder(strings.NewReader(tc.str))
