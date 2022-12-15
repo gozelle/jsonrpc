@@ -3,7 +3,7 @@ module github.com/gozelle/jsonrpc
 go 1.14
 
 require (
-	github.com/gozelle/logging v0.0.0-20221214160953-452b0d4410d6
+	github.com/gozelle/logging v0.0.0-20221214164844-da510d8a2ad8
 	github.com/gozelle/mux v1.8.0
 	github.com/gozelle/opencensus v0.24.1
 	github.com/gozelle/testify v1.8.11
