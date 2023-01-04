@@ -84,8 +84,8 @@ func NewDetail(detail any, msg string, args ...any) *Error {
 var marshalableRT = reflect.TypeOf(new(marshalable)).Elem()
 
 type Error struct {
-	Code    ErrorCode       `json:"message,omitempty"`
-	Message string          `json:"code,omitempty"`
+	Code    ErrorCode       `json:"code,omitempty"`
+	Message string          `json:"message,omitempty"`
 	Detail  any             `json:"detail,omitempty"`
 	Meta    json.RawMessage `json:"meta,omitempty"`
 }
