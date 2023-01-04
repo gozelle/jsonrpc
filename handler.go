@@ -36,11 +36,11 @@ type rpcHandler struct {
 // Request / response
 
 type request struct {
-	Jsonrpc string            `json:"jsonrpc"`
-	ID      interface{}       `json:"id,omitempty"`
-	Method  string            `json:"method"`
-	Params  []param           `json:"params"`
-	Meta    map[string]string `json:"meta,omitempty"`
+	//Jsonrpc string            `json:"jsonrpc"`
+	ID     interface{}       `json:"id,omitempty"`
+	Method string            `json:"method"`
+	Params []param           `json:"params"`
+	Meta   map[string]string `json:"meta,omitempty"`
 }
 
 // Limit request size. Ideally this limit should be specific for each field
@@ -51,9 +51,9 @@ const DEFAULT_MAX_REQUEST_SIZE = 100 << 20 // 100 MiB
 
 type response struct {
 	*Error
-	ID      interface{} `json:"id"`
-	Jsonrpc string      `json:"jsonrpc,omitempty"`
-	Result  interface{} `json:"result,omitempty"`
+	ID interface{} `json:"id"`
+	//Jsonrpc string      `json:"jsonrpc,omitempty"`
+	Result interface{} `json:"result,omitempty"`
 }
 
 // Register
@@ -298,8 +298,8 @@ func (s *RPCServer) handle(ctx context.Context, req request, w func(func(io.Writ
 	// /////////////////
 	
 	resp := response{
-		Jsonrpc: "2.0",
-		ID:      req.ID,
+		//Jsonrpc: "2.0",
+		ID: req.ID,
 	}
 	
 	var respErr *Error

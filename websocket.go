@@ -186,9 +186,9 @@ func (c *wsConn) handleOutChans() {
 			
 			c.nextWriter(func(w io.Writer) {
 				resp := &response{
-					Jsonrpc: "2.0",
-					ID:      registration.reqID,
-					Result:  registration.chID,
+					//Jsonrpc: "2.0",
+					ID:     registration.reqID,
+					Result: registration.chID,
 				}
 				
 				if err := json.NewEncoder(w).Encode(resp); err != nil {
@@ -226,10 +226,10 @@ func (c *wsConn) handleOutChans() {
 			caseToID = caseToID[:n-internal]
 			
 			if err := c.sendRequest(request{
-				Jsonrpc: "2.0",
-				ID:      nil, // notification
-				Method:  chClose,
-				Params:  []param{{v: reflect.ValueOf(id)}},
+				//Jsonrpc: "2.0",
+				ID:     nil, // notification
+				Method: chClose,
+				Params: []param{{v: reflect.ValueOf(id)}},
 			}); err != nil {
 				log.Warnf("closed out channel sendRequest failed: %s", err)
 			}
@@ -238,10 +238,10 @@ func (c *wsConn) handleOutChans() {
 		
 		// forward message
 		if err := c.sendRequest(request{
-			Jsonrpc: "2.0",
-			ID:      nil, // notification
-			Method:  chValue,
-			Params:  []param{{v: reflect.ValueOf(caseToID[chosen-internal])}, {v: val}},
+			//Jsonrpc: "2.0",
+			ID:     nil, // notification
+			Method: chValue,
+			Params: []param{{v: reflect.ValueOf(caseToID[chosen-internal])}, {v: val}},
 		}); err != nil {
 			log.Warnf("sendRequest failed: %s", err)
 			return
@@ -283,9 +283,9 @@ func (c *wsConn) handleCtxAsync(actx context.Context, id interface{}) {
 	<-actx.Done()
 	
 	if err := c.sendRequest(request{
-		Jsonrpc: "2.0",
-		Method:  wsCancel,
-		Params:  []param{{v: reflect.ValueOf(id)}},
+		//Jsonrpc: "2.0",
+		Method: wsCancel,
+		Params: []param{{v: reflect.ValueOf(id)}},
 	}); err != nil {
 		log.Warnw("failed to send request", "method", wsCancel, "id", id, "error", err.Error())
 	}
@@ -386,8 +386,8 @@ func (c *wsConn) handleCall(ctx context.Context, frame frame) {
 	}
 	
 	req := request{
-		Jsonrpc: frame.Jsonrpc,
-		ID:      frame.ID,
+		//Jsonrpc: frame.Jsonrpc,
+		ID: frame.ID,
 		//Meta:    frame.Meta,
 		Method: frame.Method,
 		Params: frame.Params,

@@ -247,9 +247,9 @@ func websocketClient(ctx context.Context, addr string, namespace string, outs []
 				
 				cancelReq := clientRequest{
 					req: request{
-						Jsonrpc: "2.0",
-						Method:  wsCancel,
-						Params:  []param{{v: reflect.ValueOf(cr.req.ID)}},
+						//Jsonrpc: "2.0",
+						Method: wsCancel,
+						Params: []param{{v: reflect.ValueOf(cr.req.ID)}},
 					},
 				}
 				select {
@@ -516,10 +516,10 @@ func (fn *rpcFunc) handleRpcCall(args []reflect.Value) (results []reflect.Value)
 	}
 	
 	req := request{
-		Jsonrpc: "2.0",
-		ID:      id,
-		Method:  fn.client.namespace + "." + fn.name,
-		Params:  params,
+		//Jsonrpc: "2.0",
+		ID:     id,
+		Method: fn.client.namespace + "." + fn.name,
+		Params: params,
 	}
 	
 	if span != nil {
