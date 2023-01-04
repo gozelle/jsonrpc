@@ -1059,6 +1059,10 @@ func (h *ErrHandler) TestMy(s string) error {
 	}
 }
 
+func (h *ErrHandler) TestCode() error {
+	return NewCode(100102, "validate error")
+}
+
 func TestUserError(t *testing.T) {
 	// setup server
 	
@@ -1085,9 +1089,10 @@ func TestUserError(t *testing.T) {
 	// setup client
 	
 	var client struct {
-		Test   func() error
-		TestP  func() error
-		TestMy func(s string) error
+		Test     func() error
+		TestP    func() error
+		TestMy   func(s string) error
+		TestCode func() error
 	}
 	closer, err := NewMergeClient(context.Background(), "ws://"+testServ.Listener.Addr().String(), "ErrHandler", []interface{}{
 		&client,
@@ -1105,11 +1110,17 @@ func TestUserError(t *testing.T) {
 	require.Equal(t, "this happened: some event", e.Error())
 	require.Equal(t, "this happened: some event", e.(*ErrMyErr).Error())
 	
+	e = client.TestCode()
+	require.Error(t, e)
+	v, ok := e.(*Error)
+	require.True(t, ok)
+	require.Equal(t, v.Code, 100102)
 	closer()
 }
 
 // Unit test for request/response ID translation.
 func TestIDHandling(t *testing.T) {
+	
 	var decoded request
 	
 	cases := []struct {
@@ -1138,4 +1149,9 @@ func TestIDHandling(t *testing.T) {
 			}
 		})
 	}
+	
+}
+
+func Test(t *testing.T) {
+	t.Log("ok")
 }

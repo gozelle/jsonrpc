@@ -49,49 +49,11 @@ type request struct {
 // Configured by WithMaxRequestSize.
 const DEFAULT_MAX_REQUEST_SIZE = 100 << 20 // 100 MiB
 
-type respError struct {
-	Code    ErrorCode       `json:"code"`
-	Message string          `json:"message"`
-	Meta    json.RawMessage `json:"meta,omitempty"`
-}
-
-func (e *respError) Error() string {
-	if e.Code >= -32768 && e.Code <= -32000 {
-		return fmt.Sprintf("RPC error (%d): %s", e.Code, e.Message)
-	}
-	return e.Message
-}
-
-var marshalableRT = reflect.TypeOf(new(marshalable)).Elem()
-
-func (e *respError) val(errors *Errors) reflect.Value {
-	if errors != nil {
-		t, ok := errors.byCode[e.Code]
-		if ok {
-			var v reflect.Value
-			if t.Kind() == reflect.Ptr {
-				v = reflect.New(t.Elem())
-			} else {
-				v = reflect.New(t)
-			}
-			if len(e.Meta) > 0 && v.Type().Implements(marshalableRT) {
-				_ = v.Interface().(marshalable).UnmarshalJSON(e.Meta)
-			}
-			if t.Kind() != reflect.Ptr {
-				v = v.Elem()
-			}
-			return v
-		}
-	}
-	
-	return reflect.ValueOf(e)
-}
-
 type response struct {
-	Jsonrpc string      `json:"jsonrpc"`
-	Result  interface{} `json:"result,omitempty"`
+	*Error
 	ID      interface{} `json:"id"`
-	Error   *respError  `json:"error,omitempty"`
+	Jsonrpc string      `json:"jsonrpc,omitempty"`
+	Result  interface{} `json:"result,omitempty"`
 }
 
 // Register
@@ -217,23 +179,35 @@ func (s *RPCServer) getSpan(ctx context.Context, req request) (context.Context, 
 	return ctx, nil
 }
 
-func (s *RPCServer) createError(err error) *respError {
+func (s *RPCServer) createError(err error) *Error {
+	
+	var out *Error
+	
+	if e, ok := err.(*Error); ok {
+		out = &Error{
+			Code:    ErrorCode(e.Code),
+			Message: e.Message,
+			Detail:  e.Detail,
+		}
+		return out
+	}
+	
 	var code ErrorCode = 1
 	if s.errors != nil {
-		c, ok := s.errors.byType[reflect.TypeOf(err)]
-		if ok {
+		c, okk := s.errors.byType[reflect.TypeOf(err)]
+		if okk {
 			code = c
 		}
 	}
 	
-	out := &respError{
+	out = &Error{
 		Code:    code,
 		Message: err.(error).Error(),
 	}
 	
-	if m, ok := err.(marshalable); ok {
-		meta, err := m.MarshalJSON()
-		if err == nil {
+	if m, okk := err.(marshalable); okk {
+		meta, ee := m.MarshalJSON()
+		if ee == nil {
 			out.Meta = meta
 		}
 	}
@@ -328,13 +302,15 @@ func (s *RPCServer) handle(ctx context.Context, req request, w func(func(io.Writ
 		ID:      req.ID,
 	}
 	
+	var respErr *Error
 	if handler.errOut != -1 {
 		err := callResult[handler.errOut].Interface()
+		
 		if err != nil {
 			log.Warnf("error in RPC call to '%s': %+v", req.Method, err)
 			stats.Record(ctx, metrics.RPCResponseError.M(1))
 			
-			resp.Error = s.createError(err.(error))
+			respErr = s.createError(err.(error))
 		}
 	}
 	
@@ -348,7 +324,7 @@ func (s *RPCServer) handle(ctx context.Context, req request, w func(func(io.Writ
 	}
 	
 	// check error as JSON-RPC spec prohibits error and value at the same time
-	if resp.Error == nil {
+	if respErr == nil {
 		if res != nil && kind == reflect.Chan {
 			// Channel responses are sent from channel control goroutine.
 			// Sending responses here could cause deadlocks on writeLk, or allow
@@ -362,16 +338,18 @@ func (s *RPCServer) handle(ctx context.Context, req request, w func(func(io.Writ
 			
 			log.Warnf("failed to setup channel in RPC call to '%s': %+v", req.Method, err)
 			stats.Record(ctx, metrics.RPCResponseError.M(1))
-			resp.Error = &respError{
+			respErr = &Error{
 				Code:    1,
 				Message: err.(error).Error(),
 			}
 		} else {
 			resp.Result = res
 		}
-	}
-	if resp.Error != nil && nonZero {
-		log.Errorw("error and res returned", "request", req, "r.err", resp.Error, "res", res)
+	} else {
+		resp.Error = respErr
+		if nonZero {
+			log.Errorw("error and res returned", "request", req, "r.err", respErr, "res", res)
+		}
 	}
 	
 	w(func(w io.Writer) {

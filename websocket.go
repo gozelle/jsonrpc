@@ -21,9 +21,9 @@ const chClose = "xrpc.ch.close"
 
 type frame struct {
 	// common
-	Jsonrpc string            `json:"jsonrpc"`
-	ID      interface{}       `json:"id,omitempty"`
-	Meta    map[string]string `json:"meta,omitempty"`
+	Jsonrpc string      `json:"jsonrpc"`
+	ID      interface{} `json:"id,omitempty"`
+	// Meta    map[string]string `json:"meta,omitempty"` // TODO Check usage, conflict with Error.Meta
 	
 	// request
 	Method string  `json:"method,omitempty"`
@@ -31,7 +31,7 @@ type frame struct {
 	
 	// response
 	Result json.RawMessage `json:"result,omitempty"`
-	Error  *respError      `json:"error,omitempty"`
+	Error
 }
 
 type outChanReg struct {
@@ -374,7 +374,7 @@ func (c *wsConn) handleResponse(frame frame) {
 		Jsonrpc: frame.Jsonrpc,
 		Result:  frame.Result,
 		ID:      frame.ID,
-		Error:   frame.Error,
+		Error:   &frame.Error,
 	}
 	delete(c.inflight, frame.ID)
 }
@@ -388,9 +388,9 @@ func (c *wsConn) handleCall(ctx context.Context, frame frame) {
 	req := request{
 		Jsonrpc: frame.Jsonrpc,
 		ID:      frame.ID,
-		Meta:    frame.Meta,
-		Method:  frame.Method,
-		Params:  frame.Params,
+		//Meta:    frame.Meta,
+		Method: frame.Method,
+		Params: frame.Params,
 	}
 	
 	ctx, cancel := context.WithCancel(ctx)
@@ -449,7 +449,7 @@ func (c *wsConn) closeInFlight() {
 		req.ready <- clientResponse{
 			Jsonrpc: "2.0",
 			ID:      id,
-			Error: &respError{
+			Error: &Error{
 				Message: "handler: websocket connection closed",
 				Code:    eTempWSError,
 			},
@@ -634,7 +634,7 @@ func (c *wsConn) handleWsConn(ctx context.Context) {
 					req.ready <- clientResponse{
 						Jsonrpc: "2.0",
 						ID:      req.req.ID,
-						Error: &respError{
+						Error: &Error{
 							Message: "handler: websocket connection closed",
 							Code:    eTempWSError,
 						},

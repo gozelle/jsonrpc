@@ -68,7 +68,7 @@ type clientResponse struct {
 	Jsonrpc string          `json:"jsonrpc"`
 	Result  json.RawMessage `json:"result"`
 	ID      interface{}     `json:"id"`
-	Error   *respError      `json:"error,omitempty"`
+	*Error
 }
 
 type makeChanSink func() (context.Context, func([]byte, bool))
@@ -165,8 +165,8 @@ func httpClient(ctx context.Context, addr string, namespace string, outs []inter
 			return clientResponse{}, &RPCConnectionError{err}
 		}
 		defer httpResp.Body.Close()
-		
 		var resp clientResponse
+		
 		if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {
 			return clientResponse{}, xerrors.Errorf("http status %s unmarshaling response: %w", httpResp.Status, err)
 		}
@@ -447,9 +447,8 @@ func (fn *rpcFunc) processResponse(resp clientResponse, rval reflect.Value) []re
 	}
 	if fn.errOut != -1 {
 		out[fn.errOut] = reflect.New(errorType).Elem()
-		if resp.Error != nil {
-			
-			out[fn.errOut].Set(resp.Error.val(fn.client.errors))
+		if resp.Error != nil && resp.Code != 0 {
+			out[fn.errOut].Set(resp.val(fn.client.errors))
 		}
 	}
 	
@@ -564,7 +563,8 @@ func (fn *rpcFunc) handleRpcCall(args []reflect.Value) (results []reflect.Value)
 			
 			retVal = func() reflect.Value { return val.Elem() }
 		}
-		retry := resp.Error != nil && resp.Error.Code == eTempWSError && fn.retry
+		
+		retry := resp.Error != nil && resp.Code == eTempWSError && fn.retry
 		if !retry {
 			break
 		}

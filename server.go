@@ -109,7 +109,7 @@ func rpcError(wf func(func(io.Writer)), req *request, code ErrorCode, err error)
 		resp := response{
 			Jsonrpc: "2.0",
 			ID:      req.ID,
-			Error: &respError{
+			Error: &Error{
 				Code:    code,
 				Message: err.Error(),
 			},
@@ -134,4 +134,4 @@ func (s *RPCServer) AliasMethod(alias, original string) {
 	s.aliasedMethods[alias] = original
 }
 
-var _ error = &respError{}
+var _ error = &Error{}
