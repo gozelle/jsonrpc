@@ -96,7 +96,7 @@ func (s *RPCServer) register(namespace string, r interface{}) {
 
 // Handle
 
-type rpcErrFunc func(w func(func(io.Writer)), req *request, code ErrorCode, err error)
+type rpcErrFunc func(w func(func(io.Writer)), req *request, code errorCode, err error)
 type chanOut func(reflect.Value, interface{}) error
 
 func (s *RPCServer) handleReader(ctx context.Context, r io.Reader, w io.Writer, rpcError rpcErrFunc) {
@@ -185,14 +185,14 @@ func (s *RPCServer) createError(err error) *Error {
 	
 	if e, ok := err.(*Error); ok {
 		out = &Error{
-			Code:    ErrorCode(e.Code),
+			Code:    errorCode(e.Code),
 			Message: e.Message,
 			Detail:  e.Detail,
 		}
 		return out
 	}
 	
-	var code ErrorCode = 1
+	var code errorCode = 1
 	if s.errors != nil {
 		c, okk := s.errors.byType[reflect.TypeOf(err)]
 		if okk {

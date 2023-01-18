@@ -21,24 +21,24 @@ func (e *RPCConnectionError) Unwrap() error {
 }
 
 type errors struct {
-	byType map[reflect.Type]ErrorCode
-	byCode map[ErrorCode]reflect.Type
+	byType map[reflect.Type]errorCode
+	byCode map[errorCode]reflect.Type
 }
 
-type ErrorCode = int
+type errorCode = int
 
 const FirstUserCode = 2
 
 func NewErrors() errors {
 	return errors{
-		byType: map[reflect.Type]ErrorCode{},
-		byCode: map[ErrorCode]reflect.Type{
+		byType: map[reflect.Type]errorCode{},
+		byCode: map[errorCode]reflect.Type{
 			-1111111: reflect.TypeOf(&RPCConnectionError{}),
 		},
 	}
 }
 
-func (e *errors) Register(c ErrorCode, typ interface{}) {
+func (e *errors) Register(c errorCode, typ interface{}) {
 	rt := reflect.TypeOf(typ).Elem()
 	if !rt.Implements(errorType) {
 		panic("can't register non-error types")
@@ -55,7 +55,7 @@ type marshalable interface {
 
 func NewError(code int, detail any, msg string, args ...any) *Error {
 	return &Error{
-		Code:    ErrorCode(code),
+		Code:    errorCode(code),
 		Message: fmt.Sprintf(msg, args...),
 		Detail:  detail,
 	}
@@ -69,7 +69,7 @@ func NewMessage(msg string, args ...any) *Error {
 
 func NewCode(code int, msg string, args ...any) *Error {
 	return &Error{
-		Code:    ErrorCode(code),
+		Code:    errorCode(code),
 		Message: fmt.Sprintf(msg, args...),
 	}
 }
@@ -84,7 +84,7 @@ func NewDetail(detail any, msg string, args ...any) *Error {
 var marshalableRT = reflect.TypeOf(new(marshalable)).Elem()
 
 type Error struct {
-	Code    ErrorCode       `json:"code,omitempty"`
+	Code    errorCode       `json:"code,omitempty"`
 	Message string          `json:"message,omitempty"`
 	Detail  any             `json:"detail,omitempty"`
 	Meta    json.RawMessage `json:"meta,omitempty"`

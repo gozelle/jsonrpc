@@ -93,7 +93,7 @@ func (s *RPCServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.handleReader(ctx, r.Body, w, rpcError)
 }
 
-func rpcError(wf func(func(io.Writer)), req *request, code ErrorCode, err error) {
+func rpcError(wf func(func(io.Writer)), req *request, code errorCode, err error) {
 	log.Errorf("RPC Error: %s", err)
 	wf(func(w io.Writer) {
 		if hw, ok := w.(http.ResponseWriter); ok {
