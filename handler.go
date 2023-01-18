@@ -222,7 +222,9 @@ func (s *RPCServer) handle(ctx context.Context, req request, w http.ResponseWrit
 	ctx, _ = tag.New(ctx, tag.Insert(metrics.RPCMethod, req.Method))
 	defer span.End()
 	
-	w.Header().Set(X_RPC_Method, req.Method)
+	if w != nil {
+		w.Header().Set(X_RPC_Handler, req.Method)
+	}
 	
 	handler, ok := s.methods[req.Method]
 	if !ok {
@@ -310,18 +312,18 @@ func (s *RPCServer) handle(ctx context.Context, req request, w http.ResponseWrit
 		err := callResult[handler.errOut].Interface()
 		
 		if err != nil {
-			
-			if e, ok := err.(*Error); ok && e.Code >= 1000 {
-				w.WriteHeader(http.StatusBadRequest)
-				w.Header().Set(X_RPC_ERROR, e.Message)
-			} else {
-				//log.Warnf("error in RPC call to '%s': %+v", req.Method, err)
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Header().Set(X_RPC_ERROR, fmt.Sprintf("%v", err))
+			if w != nil {
+				if e, ok := err.(*Error); ok && e.Code >= 1000 {
+					w.WriteHeader(http.StatusBadRequest)
+					w.Header().Set(X_RPC_ERROR, e.Message)
+				} else {
+					
+					w.WriteHeader(http.StatusInternalServerError)
+					w.Header().Set(X_RPC_ERROR, fmt.Sprintf("%v", err))
+				}
 			}
-			
+			//log.Warnf("error in RPC call to '%s': %+v", req.Method, err)
 			stats.Record(ctx, metrics.RPCResponseError.M(1))
-			
 			respErr = s.createError(err.(error))
 		}
 	}
