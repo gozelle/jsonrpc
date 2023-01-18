@@ -15,7 +15,7 @@ type Config struct {
 	timeout          time.Duration
 	
 	paramEncoders map[reflect.Type]ParamEncoder
-	errors        *Errors
+	errors        *errors
 	
 	noReconnect      bool
 	proxyConnFactory func(func() (*websocket.Conn, error)) func() (*websocket.Conn, error) // for testing
@@ -70,7 +70,7 @@ func WithParamEncoder(t interface{}, encoder ParamEncoder) func(c *Config) {
 	}
 }
 
-func WithErrors(es Errors) func(c *Config) {
+func WithErrors(es errors) func(c *Config) {
 	return func(c *Config) {
 		c.errors = &es
 	}

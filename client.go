@@ -50,17 +50,17 @@ var (
 	}
 )
 
-// ErrClient is an error which occurred on the client side the library
-type ErrClient struct {
+// ClientErr is an error which occurred on the client side the library
+type ClientErr struct {
 	err error
 }
 
-func (e *ErrClient) Error() string {
+func (e *ClientErr) Error() string {
 	return fmt.Sprintf("RPC client error: %s", e.err)
 }
 
 // Unwrap unwraps the actual error
-func (e *ErrClient) Unwrap() error {
+func (e *ClientErr) Unwrap() error {
 	return e.err
 }
 
@@ -96,7 +96,7 @@ func NewClient(ctx context.Context, addr string, namespace string, handler inter
 type client struct {
 	namespace     string
 	paramEncoders map[reflect.Type]ParamEncoder
-	errors        *Errors
+	errors        *errors
 	
 	doRequest func(context.Context, clientRequest) (clientResponse, error)
 	exiting   <-chan struct{}
@@ -463,7 +463,7 @@ func (fn *rpcFunc) processError(err error) []reflect.Value {
 	}
 	if fn.errOut != -1 {
 		out[fn.errOut] = reflect.New(errorType).Elem()
-		out[fn.errOut].Set(reflect.ValueOf(&ErrClient{err}))
+		out[fn.errOut].Set(reflect.ValueOf(&ClientErr{err}))
 	}
 	
 	return out

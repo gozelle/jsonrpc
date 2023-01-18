@@ -20,7 +20,7 @@ func (e *RPCConnectionError) Unwrap() error {
 	return e.err
 }
 
-type Errors struct {
+type errors struct {
 	byType map[reflect.Type]ErrorCode
 	byCode map[ErrorCode]reflect.Type
 }
@@ -29,8 +29,8 @@ type ErrorCode = int
 
 const FirstUserCode = 2
 
-func NewErrors() Errors {
-	return Errors{
+func NewErrors() errors {
+	return errors{
 		byType: map[reflect.Type]ErrorCode{},
 		byCode: map[ErrorCode]reflect.Type{
 			-1111111: reflect.TypeOf(&RPCConnectionError{}),
@@ -38,7 +38,7 @@ func NewErrors() Errors {
 	}
 }
 
-func (e *Errors) Register(c ErrorCode, typ interface{}) {
+func (e *errors) Register(c ErrorCode, typ interface{}) {
 	rt := reflect.TypeOf(typ).Elem()
 	if !rt.Implements(errorType) {
 		panic("can't register non-error types")
@@ -97,7 +97,7 @@ func (e *Error) Error() string {
 	return e.Message
 }
 
-func (e *Error) val(errors *Errors) reflect.Value {
+func (e *Error) val(errors *errors) reflect.Value {
 	if errors != nil {
 		t, ok := errors.byCode[e.Code]
 		if ok {
