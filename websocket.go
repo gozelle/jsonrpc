@@ -3,7 +3,7 @@ package jsonrpc
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	goerrors "errors"
 	"io"
 	"io/ioutil"
 	"reflect"
@@ -104,7 +104,7 @@ func (c *wsConn) nextMessage() {
 		return
 	}
 	if msgType != websocket.BinaryMessage && msgType != websocket.TextMessage {
-		c.incomingErr = errors.New("unsupported message type")
+		c.incomingErr = goerrors.New("unsupported message type")
 		close(c.incoming)
 		return
 	}

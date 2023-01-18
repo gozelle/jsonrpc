@@ -3,7 +3,7 @@ package jsonrpc
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	goerrors "errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -45,7 +45,7 @@ type TestOut struct {
 
 func (h *SimpleServerHandler) Add(in int) error {
 	if in == -3546 {
-		return errors.New("test")
+		return goerrors.New("test")
 	}
 	
 	h.n += in
@@ -63,7 +63,7 @@ func (h *SimpleServerHandler) StringMatch(t TestType, i2 int64) (out TestOut, er
 		out.Ok = true
 	}
 	if i2 != int64(t.I) {
-		return TestOut{}, errors.New(":(")
+		return TestOut{}, goerrors.New(":(")
 	}
 	out.I = t.I
 	out.S = t.S
@@ -100,7 +100,7 @@ func TestReconnection(t *testing.T) {
 				}()
 				
 				if connectionAttempts > 1 {
-					return nil, errors.New("simulates a failed reconnect attempt")
+					return nil, goerrors.New("simulates a failed reconnect attempt")
 				}
 				
 				c, err := f()
@@ -128,7 +128,7 @@ func TestReconnection(t *testing.T) {
 }
 
 func (h *SimpleServerHandler) ErrChanSub(ctx context.Context) (<-chan int, error) {
-	return nil, errors.New("expect to return an error")
+	return nil, goerrors.New("expect to return an error")
 }
 
 func TestRPCBadConnection(t *testing.T) {
@@ -153,7 +153,7 @@ func TestRPCBadConnection(t *testing.T) {
 	closer, err := NewClient(context.Background(), "http://"+testServ.Listener.Addr().String()+"0", "SimpleServerHandler", &client, nil)
 	require.NoError(t, err)
 	err = client.Add(2)
-	require.True(t, errors.As(err, new(*RPCConnectionError)))
+	require.True(t, goerrors.As(err, new(*RPCConnectionError)))
 	
 	defer closer()
 	
@@ -522,7 +522,7 @@ func TestCtxHttp(t *testing.T) {
 type UnUnmarshalable int
 
 func (*UnUnmarshalable) UnmarshalJSON([]byte) error {
-	return errors.New("nope")
+	return goerrors.New("nope")
 }
 
 type UnUnmarshalableHandler struct{}
