@@ -421,7 +421,7 @@ func (c *wsConn) handleCall(ctx context.Context, frame frame) {
 		}
 	}
 	
-	go c.handler.handle(ctx, req, nextWriter, rpcError, done, c.handleChanOut)
+	go c.handler.handle(ctx, req, nil, nextWriter, rpcError, done, c.handleChanOut)
 }
 
 // handleFrame handles all incoming messages (calls and responses)

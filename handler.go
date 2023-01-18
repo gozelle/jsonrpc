@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"reflect"
 	
 	"github.com/gozelle/opencensus/stats"
@@ -99,7 +100,7 @@ func (s *RPCServer) register(namespace string, r interface{}) {
 type rpcErrFunc func(w func(func(io.Writer)), req *request, code errorCode, err error)
 type chanOut func(reflect.Value, interface{}) error
 
-func (s *RPCServer) handleReader(ctx context.Context, r io.Reader, w io.Writer, rpcError rpcErrFunc) {
+func (s *RPCServer) handleReader(ctx context.Context, r io.Reader, w http.ResponseWriter, rpcError rpcErrFunc) {
 	wf := func(cb func(io.Writer)) {
 		cb(w)
 	}
@@ -141,7 +142,7 @@ func (s *RPCServer) handleReader(ctx context.Context, r io.Reader, w io.Writer, 
 		return
 	}
 	
-	s.handle(ctx, req, wf, rpcError, func(bool) {}, nil)
+	s.handle(ctx, req, w, wf, rpcError, func(bool) {}, nil)
 }
 
 func doCall(methodName string, f reflect.Value, params []reflect.Value) (out []reflect.Value, err error) {
@@ -215,11 +216,13 @@ func (s *RPCServer) createError(err error) *Error {
 	return out
 }
 
-func (s *RPCServer) handle(ctx context.Context, req request, w func(func(io.Writer)), rpcError rpcErrFunc, done func(keepCtx bool), chOut chanOut) {
+func (s *RPCServer) handle(ctx context.Context, req request, w http.ResponseWriter, wf func(func(io.Writer)), rpcError rpcErrFunc, done func(keepCtx bool), chOut chanOut) {
 	// Not sure if we need to sanitize the incoming req.Method or not.
 	ctx, span := s.getSpan(ctx, req)
 	ctx, _ = tag.New(ctx, tag.Insert(metrics.RPCMethod, req.Method))
 	defer span.End()
+	
+	w.Header().Set(X_RPC_Method, req.Method)
 	
 	handler, ok := s.methods[req.Method]
 	if !ok {
@@ -228,7 +231,7 @@ func (s *RPCServer) handle(ctx context.Context, req request, w func(func(io.Writ
 			handler, ok = s.methods[aliasTo]
 		}
 		if !ok {
-			rpcError(w, &req, rpcMethodNotFound, fmt.Errorf("method '%s' not found", req.Method))
+			rpcError(wf, &req, rpcMethodNotFound, fmt.Errorf("method '%s' not found", req.Method))
 			stats.Record(ctx, metrics.RPCInvalidMethod.M(1))
 			done(false)
 			return
@@ -236,7 +239,7 @@ func (s *RPCServer) handle(ctx context.Context, req request, w func(func(io.Writ
 	}
 	
 	if len(req.Params) != handler.nParams {
-		rpcError(w, &req, rpcInvalidParams, fmt.Errorf("wrong param count (method '%s'): %d != %d", req.Method, len(req.Params), handler.nParams))
+		rpcError(wf, &req, rpcInvalidParams, fmt.Errorf("wrong param count (method '%s'): %d != %d", req.Method, len(req.Params), handler.nParams))
 		stats.Record(ctx, metrics.RPCRequestError.M(1))
 		done(false)
 		return
@@ -246,7 +249,7 @@ func (s *RPCServer) handle(ctx context.Context, req request, w func(func(io.Writ
 	defer done(outCh)
 	
 	if chOut == nil && outCh {
-		rpcError(w, &req, rpcMethodNotFound, fmt.Errorf("method '%s' not supported in this mode (no out channel support)", req.Method))
+		rpcError(wf, &req, rpcMethodNotFound, fmt.Errorf("method '%s' not supported in this mode (no out channel support)", req.Method))
 		stats.Record(ctx, metrics.RPCRequestError.M(1))
 		return
 	}
@@ -265,7 +268,7 @@ func (s *RPCServer) handle(ctx context.Context, req request, w func(func(io.Writ
 		if !found {
 			rp = reflect.New(typ)
 			if err := json.NewDecoder(bytes.NewReader(req.Params[i].data)).Decode(rp.Interface()); err != nil {
-				rpcError(w, &req, rpcParseError, xerrors.Errorf("unmarshaling params for '%s' (param: %T): %w", req.Method, rp.Interface(), err))
+				rpcError(wf, &req, rpcParseError, xerrors.Errorf("unmarshaling params for '%s' (param: %T): %w", req.Method, rp.Interface(), err))
 				stats.Record(ctx, metrics.RPCRequestError.M(1))
 				return
 			}
@@ -274,7 +277,7 @@ func (s *RPCServer) handle(ctx context.Context, req request, w func(func(io.Writ
 			var err error
 			rp, err = dec(ctx, req.Params[i].data)
 			if err != nil {
-				rpcError(w, &req, rpcParseError, xerrors.Errorf("decoding params for '%s' (param: %d; custom decoder): %w", req.Method, i, err))
+				rpcError(wf, &req, rpcParseError, xerrors.Errorf("decoding params for '%s' (param: %d; custom decoder): %w", req.Method, i, err))
 				stats.Record(ctx, metrics.RPCRequestError.M(1))
 				return
 			}
@@ -287,7 +290,7 @@ func (s *RPCServer) handle(ctx context.Context, req request, w func(func(io.Writ
 	
 	callResult, err := doCall(req.Method, handler.handlerFunc, callParams)
 	if err != nil {
-		rpcError(w, &req, 0, xerrors.Errorf("fatal error calling '%s': %w", req.Method, err))
+		rpcError(wf, &req, 0, xerrors.Errorf("fatal error calling '%s': %w", req.Method, err))
 		stats.Record(ctx, metrics.RPCRequestError.M(1))
 		return
 	}
@@ -307,7 +310,16 @@ func (s *RPCServer) handle(ctx context.Context, req request, w func(func(io.Writ
 		err := callResult[handler.errOut].Interface()
 		
 		if err != nil {
-			log.Warnf("error in RPC call to '%s': %+v", req.Method, err)
+			
+			if e, ok := err.(*Error); ok && e.Code >= 1000 {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Header().Set(X_RPC_ERROR, e.Message)
+			} else {
+				//log.Warnf("error in RPC call to '%s': %+v", req.Method, err)
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Header().Set(X_RPC_ERROR, fmt.Sprintf("%v", err))
+			}
+			
 			stats.Record(ctx, metrics.RPCResponseError.M(1))
 			
 			respErr = s.createError(err.(error))
@@ -352,7 +364,7 @@ func (s *RPCServer) handle(ctx context.Context, req request, w func(func(io.Writ
 		}
 	}
 	
-	w(func(w io.Writer) {
+	wf(func(w io.Writer) {
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			log.Error(err)
 			stats.Record(ctx, metrics.RPCResponseError.M(1))

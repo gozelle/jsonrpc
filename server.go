@@ -94,13 +94,14 @@ func (s *RPCServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func rpcError(wf func(func(io.Writer)), req *request, code errorCode, err error) {
-	log.Errorf("RPC Error: %s", err)
+	
 	wf(func(w io.Writer) {
 		if hw, ok := w.(http.ResponseWriter); ok {
 			hw.WriteHeader(500)
+			hw.Header().Set(X_RPC_ERROR, err.Error())
 		}
 		
-		log.Warnf("rpc error: %s", err)
+		//log.Warnf("rpc error: %s", err)
 		
 		if req.ID == nil { // notification
 			return
