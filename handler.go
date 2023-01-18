@@ -52,7 +52,7 @@ const DEFAULT_MAX_REQUEST_SIZE = 100 << 20 // 100 MiB
 
 type Response struct {
 	*Error
-	ID interface{} `json:"id"`
+	ID interface{} `json:"id,omitempty"`
 	//Jsonrpc string      `json:"jsonrpc,omitempty"`
 	Result interface{} `json:"result,omitempty"`
 }
@@ -296,9 +296,9 @@ func (s *RPCServer) handle(ctx context.Context, req request, w http.ResponseWrit
 		stats.Record(ctx, metrics.RPCRequestError.M(1))
 		return
 	}
-	if req.ID == nil {
-		return // notification
-	}
+	//if req.ID == nil {
+	//	return // notification
+	//}
 	
 	// /////////////////
 	

@@ -96,7 +96,8 @@ func (s *RPCServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func rpcError(wf func(func(io.Writer)), req *request, code errorCode, err error) {
 	
 	wf(func(w io.Writer) {
-		if hw, ok := w.(http.ResponseWriter); ok {
+		hw, ok := w.(http.ResponseWriter)
+		if ok {
 			hw.WriteHeader(500)
 			hw.Header().Set(X_RPC_ERROR, err.Error())
 		}
