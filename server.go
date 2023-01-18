@@ -89,7 +89,7 @@ func (s *RPCServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.handleWS(ctx, w, r)
 		return
 	}
-	
+	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 	s.handleReader(ctx, r.Body, w, rpcError)
 }
 
