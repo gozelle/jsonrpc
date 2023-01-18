@@ -104,12 +104,11 @@ func rpcError(wf func(func(io.Writer)), req *request, code errorCode, err error)
 		
 		//log.Warnf("rpc error: %s", err)
 		
-		if req.ID == nil { // notification
-			return
-		}
+		//if req.ID == nil { // notification
+		//	return
+		//}
 		
 		resp := Response{
-			//Jsonrpc: "2.0",
 			ID: req.ID,
 			Error: &Error{
 				Code:    code,
