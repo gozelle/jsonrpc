@@ -107,7 +107,7 @@ func rpcError(wf func(func(io.Writer)), req *request, code errorCode, err error)
 			return
 		}
 		
-		resp := response{
+		resp := Response{
 			//Jsonrpc: "2.0",
 			ID: req.ID,
 			Error: &Error{

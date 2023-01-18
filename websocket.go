@@ -185,7 +185,7 @@ func (c *wsConn) handleOutChans() {
 			})
 			
 			c.nextWriter(func(w io.Writer) {
-				resp := &response{
+				resp := &Response{
 					//Jsonrpc: "2.0",
 					ID:     registration.reqID,
 					Result: registration.chID,

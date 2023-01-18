@@ -50,7 +50,7 @@ type request struct {
 // Configured by WithMaxRequestSize.
 const DEFAULT_MAX_REQUEST_SIZE = 100 << 20 // 100 MiB
 
-type response struct {
+type Response struct {
 	*Error
 	ID interface{} `json:"id"`
 	//Jsonrpc string      `json:"jsonrpc,omitempty"`
@@ -300,7 +300,7 @@ func (s *RPCServer) handle(ctx context.Context, req request, w http.ResponseWrit
 	
 	// /////////////////
 	
-	resp := response{
+	resp := Response{
 		//Jsonrpc: "2.0",
 		ID: req.ID,
 	}
