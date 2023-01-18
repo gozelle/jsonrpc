@@ -224,7 +224,9 @@ func (s *RPCServer) handle(ctx context.Context, req request, w http.ResponseWrit
 	
 	if w != nil {
 		w.Header().Set(X_RPC_Handler, req.Method)
-		w.Header().Set(X_RPC_ID, fmt.Sprintf("%v", req.ID))
+		if req.ID != nil {
+			w.Header().Set(X_RPC_ID, fmt.Sprintf("%v", req.ID))
+		}
 	}
 	
 	handler, ok := s.methods[req.Method]
