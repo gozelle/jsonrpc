@@ -1,4 +1,4 @@
-go-jsonrpc
+# jsonrpc
 ==================
 
 [![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/gozelle/jsonrpc)
@@ -6,7 +6,7 @@ go-jsonrpc
 
 > Low Boilerplate JSON-RPC 2.0 library
 
-## Usage examples
+## 用法示例
 
 ### Server
 
@@ -131,9 +131,12 @@ type _ interface {
 
 ```
 
-## Contribute
+## 响应状态码
 
-PRs are welcome!
+| Http 状态码 | 描述         | 
+|:---------|:-----------|
+| 200      | 操作请求成功     |
+| 500      | 方法执行错误     |
 
 ## License
 

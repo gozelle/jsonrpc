@@ -1151,7 +1151,3 @@ func TestIDHandling(t *testing.T) {
 	}
 	
 }
-
-func Test(t *testing.T) {
-	t.Log("ok")
-}
