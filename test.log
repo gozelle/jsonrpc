@@ -1,0 +1,4 @@
+ok  	github.com/gozelle/jsonrpc	7.579s
+?   	github.com/gozelle/jsonrpc/auth	[no test files]
+ok  	github.com/gozelle/jsonrpc/httpio	0.604s
+?   	github.com/gozelle/jsonrpc/metrics	[no test files]
