@@ -134,13 +134,14 @@ Func7(ctx context.Context, param1 int, param2 string) (<-chan int, error)
 
 ## 响应状态码
 
-| Http 状态码 | 描述                                   | 使用                                       |
-|:---------|:-------------------------------------|:-----------------------------------------|
-| 200      | 操作请求成功                               | -                                        |
-| 400      | 自定义错误                                | `return &jsonrpc.Error{ Code: >= 1000 }` |
-| 500      | 方法执行错误                               | `return fmt.Errorf("some error")`        |
+| Http 状态码 | 描述     | 使用                                |
+|:---------|:-------|:----------------------------------|
+| 200      | 操作请求成功 | -                                 |
+| 400      | 业务错误   | `return &jsonrpc.Error{}`         |
+| 500      | 系统粗偶无  | `return fmt.Errorf("some error")` |
 
 ## License
 
 Dual-licensed under [MIT](https://github.com/gozelle/jsonrpc/blob/master/LICENSE-MIT)
+
 + [Apache 2.0](https://github.com/gozelle/jsonrpc/blob/master/LICENSE-APACHE)
