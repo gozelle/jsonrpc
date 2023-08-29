@@ -11,7 +11,7 @@ import (
 	"reflect"
 	"sync"
 	
-	logging "github.com/gozelle/logging"
+	logging "github.com/gozelle/logger/v2"
 	"github.com/gozelle/uuid"
 	"golang.org/x/xerrors"
 	

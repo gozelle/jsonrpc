@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 	
-	logging "github.com/gozelle/logging"
+	logging "github.com/gozelle/logger/v2"
 	"github.com/gozelle/opencensus/trace"
 	"github.com/gozelle/opencensus/trace/propagation"
 	"github.com/gozelle/websocket"

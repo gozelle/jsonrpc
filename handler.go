@@ -14,8 +14,8 @@ import (
 	"github.com/gozelle/opencensus/tag"
 	"github.com/gozelle/opencensus/trace"
 	"github.com/gozelle/opencensus/trace/propagation"
-	"github.com/gozelle/zap"
-	"github.com/gozelle/zap/zapcore"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"golang.org/x/xerrors"
 	
 	"github.com/gozelle/jsonrpc/metrics"

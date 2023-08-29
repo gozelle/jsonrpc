@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 	
-	logging "github.com/gozelle/logging"
+	logging "github.com/gozelle/logger/v2"
 )
 
 var log = logging.Logger("auth")

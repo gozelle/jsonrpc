@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 	
-	logging "github.com/gozelle/logging"
+	logging "github.com/gozelle/logger/v2"
 	"github.com/gozelle/testify/assert"
 	"github.com/gozelle/testify/require"
 	"github.com/gozelle/websocket"
