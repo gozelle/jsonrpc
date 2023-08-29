@@ -13,8 +13,8 @@ import (
 	"reflect"
 	"sync/atomic"
 	"time"
-	
-	logging "github.com/gozelle/logger/v2"
+
+	logging "github.com/gozelle/logger"
 	"github.com/gozelle/opencensus/trace"
 	"github.com/gozelle/opencensus/trace/propagation"
 	"github.com/gozelle/websocket"
@@ -29,9 +29,9 @@ const (
 var (
 	errorType   = reflect.TypeOf(new(error)).Elem()
 	contextType = reflect.TypeOf(new(context.Context)).Elem()
-	
+
 	log = logging.Logger("rpc")
-	
+
 	_defaultHTTPClient = &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
@@ -76,7 +76,7 @@ type makeChanSink func() (context.Context, func([]byte, bool))
 type clientRequest struct {
 	req   request
 	ready chan clientResponse
-	
+
 	// retCh provides a context and sink for handling incoming channel messages
 	retCh makeChanSink
 }
@@ -97,7 +97,7 @@ type client struct {
 	namespace     string
 	paramEncoders map[reflect.Type]ParamEncoder
 	errors        *errors
-	
+
 	doRequest func(context.Context, clientRequest) (clientResponse, error)
 	exiting   <-chan struct{}
 	idCtr     int64
@@ -110,12 +110,12 @@ func NewMergeClient(ctx context.Context, addr string, namespace string, outs []i
 	for _, o := range opts {
 		o(&config)
 	}
-	
+
 	u, err := url.Parse(addr)
 	if err != nil {
 		return nil, xerrors.Errorf("parsing address: %w", err)
 	}
-	
+
 	switch u.Scheme {
 	case "ws", "wss":
 		return websocketClient(ctx, addr, namespace, outs, requestHeader, config)
@@ -124,7 +124,7 @@ func NewMergeClient(ctx context.Context, addr string, namespace string, outs []i
 	default:
 		return nil, xerrors.Errorf("unknown url scheme '%s'", u.Scheme)
 	}
-	
+
 }
 
 func httpClient(ctx context.Context, addr string, namespace string, outs []interface{}, requestHeader http.Header, config Config) (ClientCloser, error) {
@@ -133,59 +133,59 @@ func httpClient(ctx context.Context, addr string, namespace string, outs []inter
 		paramEncoders: config.paramEncoders,
 		errors:        config.errors,
 	}
-	
+
 	stop := make(chan struct{})
 	c.exiting = stop
-	
+
 	if requestHeader == nil {
 		requestHeader = http.Header{}
 	}
-	
+
 	c.doRequest = func(ctx context.Context, cr clientRequest) (clientResponse, error) {
 		b, err := json.Marshal(&cr.req)
 		if err != nil {
 			return clientResponse{}, xerrors.Errorf("mershaling requset: %w", err)
 		}
-		
+
 		hreq, err := http.NewRequest("POST", addr, bytes.NewReader(b))
 		if err != nil {
 			return clientResponse{}, &RPCConnectionError{err}
 		}
-		
+
 		hreq.Header = requestHeader.Clone()
-		
+
 		if ctx != nil {
 			hreq = hreq.WithContext(ctx)
 		}
-		
+
 		hreq.Header.Set("Content-Type", "application/json")
-		
+
 		httpResp, err := _defaultHTTPClient.Do(hreq)
 		if err != nil {
 			return clientResponse{}, &RPCConnectionError{err}
 		}
 		defer httpResp.Body.Close()
 		var resp clientResponse
-		
+
 		if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {
 			return clientResponse{}, xerrors.Errorf("http status %s unmarshaling response: %w", httpResp.Status, err)
 		}
-		
+
 		if resp.ID, err = normalizeID(resp.ID); err != nil {
 			return clientResponse{}, xerrors.Errorf("failed to response ID: %w", err)
 		}
-		
+
 		if resp.ID != cr.req.ID {
 			return clientResponse{}, xerrors.New("request and response id didn't match")
 		}
-		
+
 		return resp, nil
 	}
-	
+
 	if err := c.provide(outs); err != nil {
 		return nil, err
 	}
-	
+
 	return func() {
 		close(stop)
 	}, nil
@@ -199,43 +199,43 @@ func websocketClient(ctx context.Context, addr string, namespace string, outs []
 		}
 		return conn, nil
 	}
-	
+
 	if config.proxyConnFactory != nil {
 		// used in tests
 		connFactory = config.proxyConnFactory(connFactory)
 	}
-	
+
 	conn, err := connFactory()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if config.noReconnect {
 		connFactory = nil
 	}
-	
+
 	c := client{
 		namespace:     namespace,
 		paramEncoders: config.paramEncoders,
 		errors:        config.errors,
 	}
-	
+
 	requests := make(chan clientRequest)
-	
+
 	c.doRequest = func(ctx context.Context, cr clientRequest) (clientResponse, error) {
 		select {
 		case requests <- cr:
 		case <-c.exiting:
 			return clientResponse{}, fmt.Errorf("websocket routine exiting")
 		}
-		
+
 		var ctxDone <-chan struct{}
 		var resp clientResponse
-		
+
 		if ctx != nil {
 			ctxDone = ctx.Done()
 		}
-		
+
 		// wait for response, handle context cancellation
 	loop:
 		for {
@@ -244,7 +244,7 @@ func websocketClient(ctx context.Context, addr string, namespace string, outs []
 				break loop
 			case <-ctxDone: // send cancel request
 				ctxDone = nil
-				
+
 				cancelReq := clientRequest{
 					req: request{
 						//Jsonrpc: "2.0",
@@ -257,17 +257,17 @@ func websocketClient(ctx context.Context, addr string, namespace string, outs []
 				case <-c.exiting:
 					log.Warn("failed to send request cancellation, websocket routing exited")
 				}
-				
+
 			}
 		}
-		
+
 		return resp, nil
 	}
-	
+
 	stop := make(chan struct{})
 	exiting := make(chan struct{})
 	c.exiting = exiting
-	
+
 	go (&wsConn{
 		conn:             conn,
 		connFactory:      connFactory,
@@ -279,11 +279,11 @@ func websocketClient(ctx context.Context, addr string, namespace string, outs []
 		stop:             stop,
 		exiting:          exiting,
 	}).handleWsConn(ctx)
-	
+
 	if err := c.provide(outs); err != nil {
 		return nil, err
 	}
-	
+
 	return func() {
 		close(stop)
 		<-exiting
@@ -300,40 +300,40 @@ func (c *client) provide(outs []interface{}) error {
 		if typ.Kind() != reflect.Struct {
 			return xerrors.New("handler should be a struct")
 		}
-		
+
 		val := reflect.ValueOf(handler)
-		
+
 		for i := 0; i < typ.NumField(); i++ {
 			fn, err := c.makeRpcFunc(typ.Field(i))
 			if err != nil {
 				return err
 			}
-			
+
 			val.Elem().Field(i).Set(fn)
 		}
 	}
-	
+
 	return nil
 }
 
 func (c *client) makeOutChan(ctx context.Context, ftyp reflect.Type, valOut int) (func() reflect.Value, makeChanSink) {
 	retVal := reflect.Zero(ftyp.Out(valOut))
-	
+
 	chCtor := func() (context.Context, func([]byte, bool)) {
 		// unpack chan type to make sure it's reflect.BothDir
 		ctyp := reflect.ChanOf(reflect.BothDir, ftyp.Out(valOut).Elem())
 		ch := reflect.MakeChan(ctyp, 0) // todo: buffer?
 		retVal = ch.Convert(ftyp.Out(valOut))
-		
+
 		incoming := make(chan reflect.Value, 32)
-		
+
 		// gorotuine to handle buffering of items
 		go func() {
 			buf := (&list.List{}).Init()
-			
+
 			for {
 				front := buf.Front()
-				
+
 				cases := []reflect.SelectCase{
 					{
 						Dir:  reflect.SelectRecv,
@@ -344,7 +344,7 @@ func (c *client) makeOutChan(ctx context.Context, ftyp reflect.Type, valOut int)
 						Chan: reflect.ValueOf(incoming),
 					},
 				}
-				
+
 				if front != nil {
 					cases = append(cases, reflect.SelectCase{
 						Dir:  reflect.SelectSend,
@@ -352,9 +352,9 @@ func (c *client) makeOutChan(ctx context.Context, ftyp reflect.Type, valOut int)
 						Send: front.Value.(reflect.Value).Elem(),
 					})
 				}
-				
+
 				chosen, val, ok := reflect.Select(cases)
-				
+
 				switch chosen {
 				case 0:
 					ch.Close()
@@ -373,42 +373,42 @@ func (c *client) makeOutChan(ctx context.Context, ftyp reflect.Type, valOut int)
 					} else {
 						incoming = nil
 					}
-				
+
 				case 2:
 					buf.Remove(front)
 				}
-				
+
 				if incoming == nil && buf.Len() == 0 {
 					ch.Close()
 					return
 				}
 			}
 		}()
-		
+
 		return ctx, func(result []byte, ok bool) {
 			if !ok {
 				close(incoming)
 				return
 			}
-			
+
 			val := reflect.New(ftyp.Out(valOut).Elem())
 			if err := json.Unmarshal(result, val.Interface()); err != nil {
 				log.Errorf("error unmarshaling chan response: %s", err)
 				return
 			}
-			
+
 			if ctx.Err() != nil {
 				log.Errorf("got rpc message with cancelled context: %s", ctx.Err())
 				return
 			}
-			
+
 			select {
 			case incoming <- val:
 			case <-ctx.Done():
 			}
 		}
 	}
-	
+
 	return func() reflect.Value { return retVal }, chCtor
 }
 
@@ -416,32 +416,32 @@ func (c *client) sendRequest(ctx context.Context, req request, chCtor makeChanSi
 	creq := clientRequest{
 		req:   req,
 		ready: make(chan clientResponse, 1),
-		
+
 		retCh: chCtor,
 	}
-	
+
 	return c.doRequest(ctx, creq)
 }
 
 type rpcFunc struct {
 	client *client
-	
+
 	ftyp reflect.Type
 	name string
-	
+
 	nout   int
 	valOut int
 	errOut int
-	
+
 	hasCtx               int
 	returnValueIsChannel bool
-	
+
 	retry bool
 }
 
 func (fn *rpcFunc) processResponse(resp clientResponse, rval reflect.Value) []reflect.Value {
 	out := make([]reflect.Value, fn.nout)
-	
+
 	if fn.valOut != -1 {
 		out[fn.valOut] = rval
 	}
@@ -451,13 +451,13 @@ func (fn *rpcFunc) processResponse(resp clientResponse, rval reflect.Value) []re
 			out[fn.errOut].Set(resp.val(fn.client.errors))
 		}
 	}
-	
+
 	return out
 }
 
 func (fn *rpcFunc) processError(err error) []reflect.Value {
 	out := make([]reflect.Value, fn.nout)
-	
+
 	if fn.valOut != -1 {
 		out[fn.valOut] = reflect.New(fn.ftyp.Out(fn.valOut)).Elem()
 	}
@@ -465,7 +465,7 @@ func (fn *rpcFunc) processError(err error) []reflect.Value {
 		out[fn.errOut] = reflect.New(errorType).Elem()
 		out[fn.errOut].Set(reflect.ValueOf(&ClientErr{err}))
 	}
-	
+
 	return out
 }
 
@@ -482,12 +482,12 @@ func (fn *rpcFunc) handleRpcCall(args []reflect.Value) (results []reflect.Value)
 				return fn.processError(fmt.Errorf("sendRequest failed: %w", err))
 			}
 		}
-		
+
 		params[i] = param{
 			v: arg,
 		}
 	}
-	
+
 	var ctx context.Context
 	var span *trace.Span
 	if fn.hasCtx == 1 {
@@ -495,16 +495,16 @@ func (fn *rpcFunc) handleRpcCall(args []reflect.Value) (results []reflect.Value)
 		ctx, span = trace.StartSpan(ctx, "api.call")
 		defer span.End()
 	}
-	
+
 	retVal := func() reflect.Value { return reflect.Value{} }
-	
+
 	// if the function returns a channel, we need to provide a sink for the
 	// messages
 	var chCtor makeChanSink
 	if fn.returnValueIsChannel {
 		retVal, chCtor = fn.client.makeOutChan(ctx, fn.ftyp, fn.valOut)
 	}
-	
+
 	// Prepare the ID to send on the wire.
 	// We track int64 ids as float64 in the inflight map (because that's what
 	// they'll be decoded to). encoding/json outputs numbers with their minimal
@@ -514,29 +514,29 @@ func (fn *rpcFunc) handleRpcCall(args []reflect.Value) (results []reflect.Value)
 	if err != nil {
 		return fn.processError(fmt.Errorf("failed to normalize id")) // should probably panic
 	}
-	
+
 	req := request{
 		//Jsonrpc: "2.0",
 		ID:     id,
 		Method: fn.client.namespace + "." + fn.name,
 		Params: params,
 	}
-	
+
 	if span != nil {
 		span.AddAttributes(trace.StringAttribute("method", req.Method))
-		
+
 		eSC := base64.StdEncoding.EncodeToString(
 			propagation.Binary(span.SpanContext()))
 		req.Meta = map[string]string{
 			"SpanContext": eSC,
 		}
 	}
-	
+
 	b := backoff{
 		maxDelay: methodMaxRetryDelay,
 		minDelay: methodMinRetryDelay,
 	}
-	
+
 	var resp clientResponse
 	// keep retrying if got a forced closed websocket conn and calling method
 	// has retry annotation
@@ -545,14 +545,14 @@ func (fn *rpcFunc) handleRpcCall(args []reflect.Value) (results []reflect.Value)
 		if err != nil {
 			return fn.processError(fmt.Errorf("sendRequest failed: %w", err))
 		}
-		
+
 		if resp.ID != req.ID {
 			return fn.processError(xerrors.New("request and response id didn't match"))
 		}
-		
+
 		if fn.valOut != -1 && !fn.returnValueIsChannel {
 			val := reflect.New(fn.ftyp.Out(fn.valOut))
-			
+
 			if resp.Result != nil {
 				//log.Debugw("rpc result", "type", fn.ftyp.Out(fn.valOut))
 				if err := json.Unmarshal(resp.Result, val.Interface()); err != nil {
@@ -560,18 +560,18 @@ func (fn *rpcFunc) handleRpcCall(args []reflect.Value) (results []reflect.Value)
 					return fn.processError(xerrors.Errorf("unmarshaling result: %w", err))
 				}
 			}
-			
+
 			retVal = func() reflect.Value { return val.Elem() }
 		}
-		
+
 		retry := resp.Error != nil && resp.Code == eTempWSError && fn.retry
 		if !retry {
 			break
 		}
-		
+
 		time.Sleep(b.next(attempt))
 	}
-	
+
 	return fn.processResponse(resp, retVal())
 }
 
@@ -580,7 +580,7 @@ func (c *client) makeRpcFunc(f reflect.StructField) (reflect.Value, error) {
 	if ftyp.Kind() != reflect.Func {
 		return reflect.Value{}, xerrors.New("handler field not a func")
 	}
-	
+
 	fun := &rpcFunc{
 		client: c,
 		ftyp:   ftyp,
@@ -588,11 +588,11 @@ func (c *client) makeRpcFunc(f reflect.StructField) (reflect.Value, error) {
 		retry:  f.Tag.Get("retry") == "true",
 	}
 	fun.valOut, fun.errOut, fun.nout = processFuncOut(ftyp)
-	
+
 	if ftyp.NumIn() > 0 && ftyp.In(0) == contextType {
 		fun.hasCtx = 1
 	}
 	fun.returnValueIsChannel = fun.valOut != -1 && ftyp.Out(fun.valOut).Kind() == reflect.Chan
-	
+
 	return reflect.MakeFunc(ftyp, fun.handleRpcCall), nil
 }
