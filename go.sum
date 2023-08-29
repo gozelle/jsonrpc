@@ -46,6 +46,8 @@ github.com/gozelle/isatty v0.0.17 h1:1ka2GcKL1hNwIHIl5JFHfHOAzl+vXRH4Jx3dlFa88nM
 github.com/gozelle/isatty v0.0.17/go.mod h1:u77FICFTx4IXjAoAaYstj8NvStDRVhwe3NNZCKzXVGo=
 github.com/gozelle/logger v1.0.0 h1:wylqgq5kAZmfdj2VmAVhjXTdcBSHsjj3tIjAw1fUsw8=
 github.com/gozelle/logger v1.0.0/go.mod h1:HoBzTJc9goMjHfTtHm4HHJug98mnWn6Myi3cFYebEa0=
+github.com/gozelle/logger v1.3.0 h1:Tdf6dpbT+AyBS+afFNWSVGnKpUlh+oF+j7ndvVZ+BMc=
+github.com/gozelle/logger v1.3.0/go.mod h1:HoBzTJc9goMjHfTtHm4HHJug98mnWn6Myi3cFYebEa0=
 github.com/gozelle/mux v1.8.0 h1:2fZ2YnTAmtNF4FgTuONpIHxCoqlgtXBWaznhyI1PH60=
 github.com/gozelle/mux v1.8.0/go.mod h1:VrcAL0WGVjDrLMRzY2k/IwMP9SJnAsTNMFc+sFAZjbw=
 github.com/gozelle/objx v0.5.10/go.mod h1:3muRr1Da1mCg3D+wYBicuZaHtGbvfLCgewfYJoz7cbs=

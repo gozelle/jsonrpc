@@ -17,7 +17,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var log = logging.WithModule("rpc")
+var log = logging.NewLogger("rpc")
 
 func ReaderParamEncoder(addr string) jsonrpc.Option {
 	return jsonrpc.WithParamEncoder(new(io.Reader), func(value reflect.Value) (reflect.Value, error) {

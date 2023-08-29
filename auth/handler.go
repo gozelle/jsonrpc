@@ -8,7 +8,7 @@ import (
 	logging "github.com/gozelle/logger"
 )
 
-var log = logging.WithModule("auth")
+var log = logging.NewLogger("auth")
 
 type Handler struct {
 	Verify func(ctx context.Context, token string) ([]Permission, error)

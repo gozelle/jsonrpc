@@ -30,7 +30,7 @@ var (
 	errorType   = reflect.TypeOf(new(error)).Elem()
 	contextType = reflect.TypeOf(new(context.Context)).Elem()
 
-	log = logging.WithModule("rpc")
+	log = logging.NewLogger("rpc")
 
 	_defaultHTTPClient = &http.Client{
 		Transport: &http.Transport{
